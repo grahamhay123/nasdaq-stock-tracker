@@ -1,5 +1,30 @@
 import axios from 'axios';
 
+function getDynamicDateRange() {
+  const now = new Date();
+  const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  const currentHour = now.getHours();
+  
+  // Calculate how many days back to go to ensure we get recent trading days
+  let daysBack = 5; // Default to 5 trading days back
+  
+  // If it's weekend, go back further
+  if (currentDay === 0) { // Sunday
+    daysBack = 7;
+  } else if (currentDay === 6) { // Saturday
+    daysBack = 6;
+  }
+  
+  const dateTo = new Date();
+  const dateFrom = new Date();
+  dateFrom.setDate(dateTo.getDate() - daysBack);
+  
+  return {
+    dateFrom: dateFrom.toISOString().split('T')[0], // YYYY-MM-DD format
+    dateTo: dateTo.toISOString().split('T')[0]
+  };
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -21,61 +46,93 @@ export default async function handler(req, res) {
   }
 
   const stocks = ['TSLA', 'GOOGL', 'AMZN', 'MSFT', 'NFLX', 'META', 'NVDA'];
-  const stockData = [];
+  const stocksSymbols = stocks.join(',');
+  const { dateFrom, dateTo } = getDynamicDateRange();
 
   try {
-    for (let i = 0; i < stocks.length; i++) {
-      const symbol = stocks[i];
+    // Call 1: Get current intraday prices for all stocks in single API call
+    const intradayResponse = await axios.get('https://api.marketstack.com/v1/intraday/latest', {
+      params: {
+        access_key: apiKey,
+        symbols: stocksSymbols,
+        limit: 1
+      },
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+
+    // Call 2: Get recent EOD data for all stocks in single API call
+    const eodResponse = await axios.get('https://api.marketstack.com/v1/eod', {
+      params: {
+        access_key: apiKey,
+        symbols: stocksSymbols,
+        date_from: dateFrom,
+        date_to: dateTo,
+        limit: 35 // 7 stocks × 5 trading days = 35 max records
+      },
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+
+    const stockData = [];
+    
+    // Process intraday data
+    const intradayData = intradayResponse.data?.data || [];
+    const eodData = eodResponse.data?.data || [];
+    
+    // Create maps for quick lookup
+    const intradayMap = {};
+    intradayData.forEach(item => {
+      intradayMap[item.symbol] = item;
+    });
+    
+    // Create map of most recent EOD data for each stock
+    const eodMap = {};
+    eodData.forEach(item => {
+      if (!eodMap[item.symbol] || new Date(item.date) > new Date(eodMap[item.symbol].date)) {
+        eodMap[item.symbol] = item;
+      }
+    });
+
+    // Build response data for each stock
+    stocks.forEach(symbol => {
+      const intradayStock = intradayMap[symbol];
+      const eodStock = eodMap[symbol];
       
-      try {
-        const response = await axios.get('http://api.marketstack.com/v1/eod/latest', {
-          params: {
-            access_key: apiKey,
-            symbols: symbol,
-            limit: 1
-          },
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-          }
-        });
+      if (intradayStock && eodStock) {
+        const currentPrice = parseFloat(intradayStock.last);
+        const lastClosePrice = parseFloat(eodStock.close);
+        const priceChange = currentPrice - lastClosePrice;
+        const percentageChange = ((priceChange / lastClosePrice) * 100).toFixed(2);
 
-        if (response.data && response.data.data && response.data.data.length > 0) {
-          const data = response.data.data[0];
-          const priceChange = data.close - data.open;
-          const percentageChange = ((priceChange / data.open) * 100).toFixed(2);
-
-          stockData.push({
-            symbol: data.symbol,
-            currentPrice: data.close,
-            openPrice: data.open,
-            priceChange: priceChange.toFixed(2),
-            percentageChange: percentageChange,
-            lastUpdate: new Date(data.date).toLocaleDateString(),
-            isPositive: priceChange >= 0
-          });
-        } else {
-          stockData.push({
-            symbol: symbol,
-            error: 'No data available'
-          });
-        }
-      } catch (error) {
-        console.error(`Error fetching ${symbol}:`, error.message);
         stockData.push({
           symbol: symbol,
-          error: `Failed to fetch data: ${error.message}`
+          currentPrice: currentPrice.toFixed(2),
+          lastClosePrice: lastClosePrice.toFixed(2),
+          priceChange: priceChange.toFixed(2),
+          percentageChange: percentageChange,
+          currentPriceTime: new Date(intradayStock.date).toLocaleString(),
+          lastCloseDate: new Date(eodStock.date).toLocaleDateString(),
+          isPositive: priceChange >= 0
+        });
+      } else {
+        stockData.push({
+          symbol: symbol,
+          error: 'Incomplete data available',
+          hasIntraday: !!intradayStock,
+          hasEOD: !!eodStock
         });
       }
-
-      if (i < stocks.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 6000));
-      }
-    }
+    });
 
     res.status(200).json({
       success: true,
       data: stockData,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      dateRange: { dateFrom, dateTo },
+      apiCallsUsed: 2
     });
 
   } catch (error) {

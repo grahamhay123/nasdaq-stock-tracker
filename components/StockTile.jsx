@@ -4,6 +4,11 @@ export default function StockTile({ stock }) {
       <div className="bg-red-50 border border-red-200 rounded-lg p-4">
         <h3 className="text-lg font-semibold text-red-700">{stock.symbol}</h3>
         <p className="text-red-600 text-sm mt-2">{stock.error}</p>
+        {stock.hasIntraday !== undefined && (
+          <div className="text-xs text-gray-500 mt-1">
+            Intraday: {stock.hasIntraday ? '✓' : '✗'} | EOD: {stock.hasEOD ? '✓' : '✗'}
+          </div>
+        )}
       </div>
     );
   }
@@ -29,12 +34,16 @@ export default function StockTile({ stock }) {
       
       <div className="space-y-1 text-sm text-gray-600">
         <div className="flex justify-between">
-          <span>Open:</span>
-          <span className="font-medium">${parseFloat(stock.openPrice).toFixed(2)}</span>
+          <span>Current Price Time:</span>
+          <span className="font-medium text-xs">{stock.currentPriceTime}</span>
         </div>
         <div className="flex justify-between">
-          <span>Last Update:</span>
-          <span className="font-medium">{stock.lastUpdate}</span>
+          <span>Last Close:</span>
+          <span className="font-medium">${parseFloat(stock.lastClosePrice).toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Last Close Date:</span>
+          <span className="font-medium">{stock.lastCloseDate}</span>
         </div>
       </div>
     </div>
