@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import StockTile from '../components/StockTile';
 
 export default function Home() {
+  const [password, setPassword] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [stockData, setStockData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -11,10 +13,25 @@ export default function Home() {
 
   useEffect(() => {
     const savedApiKey = localStorage.getItem('marketstack_api_key');
+    const savedAuth = localStorage.getItem('app_authenticated');
     if (savedApiKey) {
       setApiKey(savedApiKey);
     }
+    if (savedAuth === 'true') {
+      setIsAuthenticated(true);
+    }
   }, []);
+
+  const handlePasswordSubmit = (e) => {
+    e.preventDefault();
+    if (password === 'Marketstackit1!') {
+      setIsAuthenticated(true);
+      localStorage.setItem('app_authenticated', 'true');
+      setError('');
+    } else {
+      setError('Incorrect password');
+    }
+  };
 
   const handleApiKeyChange = (e) => {
     const key = e.target.value;
@@ -51,13 +68,63 @@ export default function Home() {
     }
   };
 
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="bg-white rounded-lg shadow-md p-8 w-full max-w-md">
+          <h1 className="text-2xl font-bold text-center text-gray-800 mb-8">
+            NASDAQ Stock Tracker
+          </h1>
+          <form onSubmit={handlePasswordSubmit}>
+            <div className="mb-6">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                Enter Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter password to access app"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            >
+              Access App
+            </button>
+            {error && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-red-700 text-sm">{error}</p>
+              </div>
+            )}
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
-          <h1 className="text-3xl font-bold text-center text-gray-800 mb-8">
-            NASDAQ Stock Tracker
-          </h1>
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-3xl font-bold text-gray-800">
+              NASDAQ Stock Tracker
+            </h1>
+            <button
+              onClick={() => {
+                setIsAuthenticated(false);
+                localStorage.removeItem('app_authenticated');
+              }}
+              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm"
+            >
+              Logout
+            </button>
+          </div>
 
           <div className="bg-white rounded-lg shadow-md p-6 mb-8">
             <div className="flex flex-col sm:flex-row gap-4 items-center">
