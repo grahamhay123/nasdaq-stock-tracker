@@ -22,14 +22,26 @@ export default function Home() {
     }
   }, []);
 
-  const handlePasswordSubmit = (e) => {
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault();
-    if (password === 'Marketstackit1!') {
-      setIsAuthenticated(true);
-      localStorage.setItem('app_authenticated', 'true');
-      setError('');
-    } else {
-      setError('Incorrect password');
+    try {
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password }),
+      });
+      
+      if (response.ok) {
+        setIsAuthenticated(true);
+        localStorage.setItem('app_authenticated', 'true');
+        setError('');
+      } else {
+        setError('Incorrect password');
+      }
+    } catch (error) {
+      setError('Authentication failed');
     }
   };
 
