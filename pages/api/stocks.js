@@ -41,102 +41,85 @@ export default async function handler(req, res) {
 
   // Security improvement: Get API key from header instead of query parameter
   // This prevents API key from being logged in server logs
-  const apiKey = req.headers['x-api-key'] || process.env.MARKETSTACK_API_KEY;
+  const apiKey = req.headers['x-api-key'] || process.env.ALPHAVANTAGE_API_KEY;
 
   if (!apiKey) {
     return res.status(400).json({ 
-      error: 'API key is required. Please provide it via X-API-Key header or set MARKETSTACK_API_KEY environment variable.' 
+      error: 'API key is required. Please provide it via X-API-Key header or set ALPHAVANTAGE_API_KEY environment variable.' 
     });
   }
 
   const stocks = ['TSLA', 'GOOGL', 'AMZN', 'MSFT', 'NFLX', 'META', 'NVDA'];
-  const stocksSymbols = stocks.join(',');
-  const { dateFrom, dateTo } = getDynamicDateRange();
+  const stockData = [];
 
   try {
-    // Call 1: Get current intraday prices for all stocks in single API call
-    const intradayResponse = await axios.get('https://api.marketstack.com/v1/intraday/latest', {
-      params: {
-        access_key: apiKey,
-        symbols: stocksSymbols,
-        limit: 1
-      },
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
-    });
-
-    // Call 2: Get recent EOD data for all stocks in single API call
-    const eodResponse = await axios.get('https://api.marketstack.com/v1/eod', {
-      params: {
-        access_key: apiKey,
-        symbols: stocksSymbols,
-        date_from: dateFrom,
-        date_to: dateTo,
-        limit: 35 // 7 stocks × 5 trading days = 35 max records
-      },
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
-    });
-
-    const stockData = [];
+    // Alpha Vantage rate limit: 5 requests per minute (12 seconds between calls)
+    const RATE_LIMIT_DELAY = 12000; // 12 seconds in milliseconds
     
-    // Process intraday data
-    const intradayData = intradayResponse.data?.data || [];
-    const eodData = eodResponse.data?.data || [];
-    
-    // Create maps for quick lookup
-    const intradayMap = {};
-    intradayData.forEach(item => {
-      intradayMap[item.symbol] = item;
-    });
-    
-    // Create map of most recent EOD data for each stock
-    const eodMap = {};
-    eodData.forEach(item => {
-      if (!eodMap[item.symbol] || new Date(item.date) > new Date(eodMap[item.symbol].date)) {
-        eodMap[item.symbol] = item;
-      }
-    });
-
-    // Build response data for each stock
-    stocks.forEach(symbol => {
-      const intradayStock = intradayMap[symbol];
-      const eodStock = eodMap[symbol];
+    for (let i = 0; i < stocks.length; i++) {
+      const symbol = stocks[i];
       
-      if (intradayStock && eodStock) {
-        const currentPrice = parseFloat(intradayStock.last);
-        const lastClosePrice = parseFloat(eodStock.close);
-        const priceChange = currentPrice - lastClosePrice;
-        const percentageChange = ((priceChange / lastClosePrice) * 100).toFixed(2);
+      try {
+        // Add delay between API calls (except for the first one)
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY));
+        }
 
-        stockData.push({
-          symbol: symbol,
-          currentPrice: currentPrice.toFixed(2),
-          lastClosePrice: lastClosePrice.toFixed(2),
-          priceChange: priceChange.toFixed(2),
-          percentageChange: percentageChange,
-          currentPriceTime: new Date(intradayStock.date).toLocaleString(),
-          lastCloseDate: new Date(eodStock.date).toLocaleDateString(),
-          isPositive: priceChange >= 0
+        const response = await axios.get('https://www.alphavantage.co/query', {
+          params: {
+            function: 'GLOBAL_QUOTE',
+            symbol: symbol,
+            apikey: apiKey
+          },
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          },
+          timeout: 30000 // 30 second timeout
         });
-      } else {
+
+        const quote = response.data['Global Quote'];
+        
+        if (quote && quote['01. symbol']) {
+          const currentPrice = parseFloat(quote['05. price']);
+          const lastClosePrice = parseFloat(quote['08. previous close']);
+          const priceChange = parseFloat(quote['09. change']);
+          const percentageChange = quote['10. change percent'].replace('%', '');
+          const tradingDay = quote['07. latest trading day'];
+
+          stockData.push({
+            symbol: symbol,
+            currentPrice: currentPrice.toFixed(2),
+            lastClosePrice: lastClosePrice.toFixed(2),
+            priceChange: priceChange.toFixed(2),
+            percentageChange: percentageChange,
+            currentPriceTime: new Date(tradingDay + 'T16:00:00').toLocaleString(), // Market close time
+            lastCloseDate: new Date(tradingDay).toLocaleDateString(),
+            isPositive: priceChange >= 0
+          });
+        } else {
+          stockData.push({
+            symbol: symbol,
+            error: 'No data available from Alpha Vantage',
+            details: 'API response missing Global Quote data'
+          });
+        }
+      } catch (stockError) {
+        console.error(`Error fetching ${symbol}:`, stockError.message);
         stockData.push({
           symbol: symbol,
-          error: 'Incomplete data available',
-          hasIntraday: !!intradayStock,
-          hasEOD: !!eodStock
+          error: 'Failed to fetch stock data',
+          details: stockError.message
         });
       }
-    });
+    }
 
     res.status(200).json({
       success: true,
       data: stockData,
       timestamp: new Date().toISOString(),
-      dateRange: { dateFrom, dateTo },
-      apiCallsUsed: 2
+      apiCallsUsed: stocks.length,
+      provider: 'Alpha Vantage',
+      processingTime: `~${Math.ceil(stocks.length * RATE_LIMIT_DELAY / 1000)} seconds`
     });
 
   } catch (error) {
