@@ -90,8 +90,10 @@ export default async function handler(req, res) {
           
           // Validate that we have valid data
           if (symbol && !isNaN(currentPrice) && !isNaN(lastClosePrice) && tradingDay) {
-            // Parse the date properly to avoid timezone issues
-            const tradingDate = new Date(tradingDay + 'T00:00:00');
+            // Parse the date properly - Alpha Vantage returns dates in YYYY-MM-DD format
+            // Split the date string and create Date object explicitly to avoid timezone issues
+            const [year, month, day] = tradingDay.split('-');
+            const tradingDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
             
             stockData.push({
               symbol: symbol,
