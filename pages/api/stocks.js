@@ -6,6 +6,7 @@ function getDynamicDateRange() {
   const currentHour = now.getHours();
 
 const n=2;
+const k = 5;
 
   // Calculate how many days back to go to ensure we get recent trading days
   let daysBack = 5; // Default to 5 trading days back
