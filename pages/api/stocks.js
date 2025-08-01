@@ -85,15 +85,18 @@ export default async function handler(req, res) {
           const priceChange = parseFloat(quote['09. change']);
           const percentageChange = quote['10. change percent'].replace('%', '');
           const tradingDay = quote['07. latest trading day'];
-
+          
+          // Parse the date properly to avoid timezone issues
+          const tradingDate = new Date(tradingDay + 'T00:00:00');
+          
           stockData.push({
             symbol: symbol,
             currentPrice: currentPrice.toFixed(2),
             lastClosePrice: lastClosePrice.toFixed(2),
             priceChange: priceChange.toFixed(2),
             percentageChange: percentageChange,
-            currentPriceTime: new Date(tradingDay + 'T16:00:00').toLocaleString(), // Market close time
-            lastCloseDate: new Date(tradingDay).toLocaleDateString(),
+            currentPriceTime: `${tradingDate.toLocaleDateString('en-GB')} (Last Trading Day)`,
+            lastCloseDate: tradingDate.toLocaleDateString('en-GB'),
             isPositive: priceChange >= 0
           });
         } else {
