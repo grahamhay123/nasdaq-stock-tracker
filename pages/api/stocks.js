@@ -27,6 +27,7 @@ function getDynamicDateRange() {
 
 export default async function handler(req, res) {
   // CORS headers are now handled in next.config.js with restricted origins for production
+  // Test deployment with Marketstack API integration
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key');
 
