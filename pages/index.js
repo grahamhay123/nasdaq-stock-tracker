@@ -12,7 +12,7 @@ export default function Home() {
   const [lastUpdate, setLastUpdate] = useState('');
 
   useEffect(() => {
-    const savedApiKey = localStorage.getItem('alphavantage_api_key');
+    const savedApiKey = localStorage.getItem('marketstack_api_key');
     const savedAuth = localStorage.getItem('app_authenticated');
     if (savedApiKey) {
       setApiKey(savedApiKey);
@@ -48,21 +48,21 @@ export default function Home() {
   const handleApiKeyChange = (e) => {
     const key = e.target.value;
     setApiKey(key);
-    localStorage.setItem('alphavantage_api_key', key);
+    localStorage.setItem('marketstack_api_key', key);
   };
 
   const fetchStockData = async () => {
     if (!apiKey.trim()) {
-      setError('Please enter your Alpha Vantage API key');
+      setError('Please enter your Marketstack API key');
       return;
     }
 
     setLoading(true);
     setError('');
     setStockData([]);
-    setProgress({ current: 0, total: 7 });
+    setProgress({ current: 0, total: 2 });
 
-    // Simulate real-time progress for Alpha Vantage (since it takes ~84 seconds)
+    // Simple progress for Marketstack (2 API calls)
     const progressInterval = setInterval(() => {
       setProgress(prev => {
         if (prev.current < prev.total) {
@@ -70,7 +70,7 @@ export default function Home() {
         }
         return prev;
       });
-    }, 12000); // Update every 12 seconds to match API delay
+    }, 1000); // Update every second
 
     try {
       const response = await fetch('/api/stocks', {
@@ -85,7 +85,7 @@ export default function Home() {
       if (response.ok && result.success) {
         setStockData(result.data);
         setLastUpdate(new Date(result.timestamp).toLocaleString());
-        setProgress({ current: 7, total: 7 }); // Show completion
+        setProgress({ current: 2, total: 2 }); // Show completion
       } else {
         setError(result.error || 'Failed to fetch stock data');
       }
@@ -162,14 +162,14 @@ export default function Home() {
             <div className="flex flex-col sm:flex-row gap-4 items-center">
               <div className="flex-1">
                 <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700 mb-2">
-                  Alpha Vantage API Key
+                  Marketstack API Key
                 </label>
                 <input
                   id="apiKey"
                   type="password"
                   value={apiKey}
                   onChange={handleApiKeyChange}
-                  placeholder="Enter your Alpha Vantage API key"
+                  placeholder="Enter your Marketstack API key"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -199,10 +199,9 @@ export default function Home() {
                   ></div>
                 </div>
                 <div className="flex justify-between text-xs text-gray-500 mt-1">
-                  <span>Alpha Vantage API (5 requests/min limit)</span>
+                  <span>Marketstack API (2 calls total)</span>
                   <span>
-                    {progress.current === progress.total ? 'Done!' :
-                     `~${Math.max(0, (progress.total - progress.current) * 12)} seconds remaining`}
+                    {progress.current === progress.total ? 'Done!' : 'Processing...'}
                   </span>
                 </div>
               </div>
