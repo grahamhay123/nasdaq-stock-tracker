@@ -63,7 +63,11 @@ export default function Home() {
     setProgress({ current: 0, total: 7 });
 
     try {
-      const response = await fetch(`/api/stocks?apiKey=${encodeURIComponent(apiKey)}`);
+      const response = await fetch('/api/stocks', {
+        headers: {
+          'X-API-Key': apiKey
+        }
+      });
       const result = await response.json();
 
       if (response.ok && result.success) {
