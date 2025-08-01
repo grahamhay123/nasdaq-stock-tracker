@@ -1,29 +1,5 @@
 import axios from 'axios';
 
-function getDynamicDateRange() {
-  const now = new Date();
-  const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-  const currentHour = now.getHours();
-
-  // Calculate how many days back to go to ensure we get recent trading days
-  let daysBack = 5; // Default to 5 trading days back
-  
-  // If it's weekend, go back further
-  if (currentDay === 0) { // Sunday
-    daysBack = 7;
-  } else if (currentDay === 6) { // Saturday
-    daysBack = 6;
-  }
-  
-  const dateTo = new Date();
-  const dateFrom = new Date();
-  dateFrom.setDate(dateTo.getDate() - daysBack);
-  
-  return {
-    dateFrom: dateFrom.toISOString().split('T')[0], // YYYY-MM-DD format
-    dateTo: dateTo.toISOString().split('T')[0]
-  };
-}
 
 export default async function handler(req, res) {
   // CORS headers are now handled in next.config.js with restricted origins for production
@@ -54,7 +30,8 @@ export default async function handler(req, res) {
 
   try {
     // Alpha Vantage rate limit: 5 requests per minute (12 seconds between calls)
-    const RATE_LIMIT_DELAY = 12000; // 12 seconds in milliseconds
+    // Make delay configurable via environment variable
+    const RATE_LIMIT_DELAY = parseInt(process.env.ALPHA_VANTAGE_DELAY) || 12000; // 12 seconds default
     
     for (let i = 0; i < stocks.length; i++) {
       const symbol = stocks[i];
@@ -91,7 +68,8 @@ export default async function handler(req, res) {
           // Validate that we have valid data
           if (symbol && !isNaN(currentPrice) && !isNaN(lastClosePrice) && tradingDay) {
             // Parse the date properly to avoid timezone issues
-            const tradingDate = new Date(tradingDay + 'T00:00:00');
+            // Use explicit UTC to ensure consistent behavior across timezones
+            const tradingDate = new Date(tradingDay + 'T00:00:00.000Z');
             
             stockData.push({
               symbol: symbol,
@@ -105,7 +83,7 @@ export default async function handler(req, res) {
             });
           } else {
             stockData.push({
-              symbol: symbol || 'Unknown',
+              symbol: symbol || stocks[i], // Use original symbol from request if API response lacks symbol
               error: 'Invalid data received from Alpha Vantage',
               details: 'Missing required price or date information'
             });
@@ -127,7 +105,14 @@ export default async function handler(req, res) {
           }
         }
       } catch (stockError) {
-        console.error(`Error fetching ${symbol}:`, stockError.message);
+        // Enhanced structured logging for better debugging
+        console.error(`Alpha Vantage API Error for ${symbol}:`, {
+          symbol,
+          status: stockError.response?.status,
+          message: stockError.message,
+          timestamp: new Date().toISOString(),
+          code: stockError.code
+        });
         let errorMessage = 'Failed to fetch stock data';
         let errorDetails = stockError.message;
         
