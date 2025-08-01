@@ -9,7 +9,7 @@ const nextConfig = {
           { 
             key: 'Access-Control-Allow-Origin', 
             value: process.env.NODE_ENV === 'production' 
-              ? 'https://nasdaq-stock-tracker-grahamhay123.vercel.app' 
+              ? 'https://nasdaq-stock-tracker.vercel.app' 
               : '*' 
           },
           { key: 'Access-Control-Allow-Methods', value: 'GET, POST, OPTIONS' },
