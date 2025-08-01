@@ -4,9 +4,7 @@ function getDynamicDateRange() {
   const now = new Date();
   const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
   const currentHour = now.getHours();
-
-  // REMEMBER TO REMOVE THIS COMMENT TEST
-
+  
   // Calculate how many days back to go to ensure we get recent trading days
   let daysBack = 5; // Default to 5 trading days back
   
