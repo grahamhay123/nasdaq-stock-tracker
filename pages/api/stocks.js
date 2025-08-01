@@ -26,9 +26,9 @@ function getDynamicDateRange() {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // CORS headers are now handled in next.config.js with restricted origins for production
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key');
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -39,10 +39,14 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { apiKey } = req.query;
+  // Security improvement: Get API key from header instead of query parameter
+  // This prevents API key from being logged in server logs
+  const apiKey = req.headers['x-api-key'] || process.env.MARKETSTACK_API_KEY;
 
   if (!apiKey) {
-    return res.status(400).json({ error: 'API key is required' });
+    return res.status(400).json({ 
+      error: 'API key is required. Please provide it via X-API-Key header or set MARKETSTACK_API_KEY environment variable.' 
+    });
   }
 
   const stocks = ['TSLA', 'GOOGL', 'AMZN', 'MSFT', 'NFLX', 'META', 'NVDA'];
