@@ -79,39 +79,71 @@ export default async function handler(req, res) {
 
         const quote = response.data['Global Quote'];
         
-        if (quote && quote['01. symbol']) {
+        if (quote && Object.keys(quote).length > 0) {
+          // Alpha Vantage Global Quote API response keys
+          const symbol = quote['01. symbol'];
           const currentPrice = parseFloat(quote['05. price']);
           const lastClosePrice = parseFloat(quote['08. previous close']);
           const priceChange = parseFloat(quote['09. change']);
-          const percentageChange = quote['10. change percent'].replace('%', '');
+          const percentageChange = parseFloat(quote['10. change percent'].replace('%', ''));
           const tradingDay = quote['07. latest trading day'];
           
-          // Parse the date properly to avoid timezone issues
-          const tradingDate = new Date(tradingDay + 'T00:00:00');
-          
-          stockData.push({
-            symbol: symbol,
-            currentPrice: currentPrice.toFixed(2),
-            lastClosePrice: lastClosePrice.toFixed(2),
-            priceChange: priceChange.toFixed(2),
-            percentageChange: percentageChange,
-            currentPriceTime: `${tradingDate.toLocaleDateString('en-GB')} (Last Trading Day)`,
-            lastCloseDate: tradingDate.toLocaleDateString('en-GB'),
-            isPositive: priceChange >= 0
-          });
+          // Validate that we have valid data
+          if (symbol && !isNaN(currentPrice) && !isNaN(lastClosePrice) && tradingDay) {
+            // Parse the date properly to avoid timezone issues
+            const tradingDate = new Date(tradingDay + 'T00:00:00');
+            
+            stockData.push({
+              symbol: symbol,
+              currentPrice: currentPrice.toFixed(2),
+              lastClosePrice: lastClosePrice.toFixed(2),
+              priceChange: priceChange.toFixed(2),
+              percentageChange: percentageChange.toFixed(2),
+              currentPriceTime: `${tradingDate.toLocaleDateString('en-GB')} (Last Trading Day)`,
+              lastCloseDate: tradingDate.toLocaleDateString('en-GB'),
+              isPositive: priceChange >= 0
+            });
+          } else {
+            stockData.push({
+              symbol: symbol || 'Unknown',
+              error: 'Invalid data received from Alpha Vantage',
+              details: 'Missing required price or date information'
+            });
+          }
         } else {
-          stockData.push({
-            symbol: symbol,
-            error: 'No data available from Alpha Vantage',
-            details: 'API response missing Global Quote data'
-          });
+          // Check if this is an API limit response
+          if (response.data && response.data['Note'] && response.data['Note'].includes('API call frequency')) {
+            stockData.push({
+              symbol: symbol,
+              error: 'API Rate Limit Exceeded',
+              details: 'Alpha Vantage API call frequency limit reached. Please wait before making more requests.'
+            });
+          } else {
+            stockData.push({
+              symbol: symbol,
+              error: 'No data available from Alpha Vantage',
+              details: 'API response missing Global Quote data'
+            });
+          }
         }
       } catch (stockError) {
         console.error(`Error fetching ${symbol}:`, stockError.message);
+        let errorMessage = 'Failed to fetch stock data';
+        let errorDetails = stockError.message;
+        
+        // Handle specific error cases
+        if (stockError.response?.status === 403) {
+          errorMessage = 'Invalid API Key';
+          errorDetails = 'Please check your Alpha Vantage API key';
+        } else if (stockError.code === 'ECONNABORTED') {
+          errorMessage = 'Request Timeout';
+          errorDetails = 'API request took too long to respond';
+        }
+        
         stockData.push({
           symbol: symbol,
-          error: 'Failed to fetch stock data',
-          details: stockError.message
+          error: errorMessage,
+          details: errorDetails
         });
       }
     }
